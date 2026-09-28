@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MomentMarket • Own the Moment</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  <style>
+    .hero-video {
+      position: fixed; top: 0; left: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      z-index: -2;
+      filter: brightness(0.55) contrast(1.15);
+    }
+    .hero-overlay {
+      position: fixed; inset: 0;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.35), rgba(0,0,0,0.88));
+      z-index: -1;
+    }
+  </style>
+</head>
+<body class="bg-black text-white overflow-hidden">
+  <video autoplay loop muted playsinline class="hero-video" id="heroVideo">
+    <source src="hero.mp4" type="video/mp4">
+  </video>
+  
+  <div class="hero-overlay"></div>
+
+  <!-- Navbar -->
+  <nav class="fixed top-0 w-full bg-black/80 backdrop-blur-md z-50 border-b border-white/10">
+    <div class="max-w-6xl mx-auto px-8 py-6 flex justify-between items-center">
+      <div class="flex items-center gap-4">
+        <div class="text-4xl">⚽</div>
+        <span class="text-3xl font-bold tracking-tighter">MomentMarket</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <button onclick="openDashboard()" id="myMomentsBtn"
+                class="hidden px-6 py-3 border border-white/30 rounded-2xl font-semibold hover:bg-white/10 transition">
+          My Moments
+        </button>
+        <button onclick="connectWallet()" id="connectWalletBtn"
+                class="px-8 py-3 bg-white text-black rounded-2xl font-semibold hover:bg-cyan-400 transition">
+          Connect Wallet
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- My Moments Dashboard -->
+  <div id="dashboardModal" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-sm overflow-y-auto">
+    <div class="max-w-5xl mx-auto px-6 py-24">
+      <div class="flex justify-between items-center mb-8">
+        <h2 class="text-3xl font-bold">My Moments</h2>
+        <button onclick="closeDashboard()" class="text-zinc-400 hover:text-white text-2xl">✕</button>
+      </div>
+      <div id="dashboardContent" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+    </div>
+  </div>
+
+  <!-- Hero -->
+  <div class="min-h-screen flex items-center relative">
+    <div class="max-w-4xl mx-auto px-8 text-center z-10 pt-20">
+      <div class="inline-flex bg-white/10 px-6 py-2.5 rounded-3xl border border-white/20 mb-10 text-sm backdrop-blur-md">
+        Powered by TxODDS • World Cup Hackathon
+      </div>
+      
+      <h1 class="text-6xl md:text-7xl font-bold leading-none tracking-tighter mb-8">
+        Predict The Moment.<br>Own It Forever.
+      </h1>
+      
+      <p class="max-w-xl mx-auto text-xl text-zinc-300 mb-12">
+        Real-time football moments captured, verified on-chain, and turned into ownable NFTs.
+      </p>
+
+      <div class="flex flex-col sm:flex-row gap-5 justify-center">
+        <button onclick="mintMoment()" 
+                class="px-12 py-6 bg-white text-black font-bold rounded-3xl text-xl hover:bg-cyan-400 transition">
+          Mint This Moment
+        </button>
+        <button onclick="viewMarketplace()" 
+                class="px-12 py-6 border border-white/60 hover:bg-white/10 rounded-3xl text-xl transition">
+          Browse Marketplace
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Marketplace Listings (hidden until Browse Marketplace is clicked) -->
+  <div id="marketplaceSection" class="hidden relative z-10 max-w-5xl mx-auto px-8 pb-24">
+    <h2 class="text-3xl font-bold mb-6">Marketplace</h2>
+    <div id="listingsContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-6"></div>
+  </div>
+
+  <!-- Mint Modal -->
+  <div id="mintModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center px-6">
+    <div class="bg-zinc-900 border border-white/10 rounded-3xl p-8 max-w-md w-full">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-2xl font-bold">Mint a Moment</h3>
+        <button onclick="closeMintModal()" class="text-zinc-400 hover:text-white text-xl">✕</button>
+      </div>
+
+      <!-- Step 1: pick fixture + event -->
+      <div id="mintPickerStep">
+        <label class="block text-sm text-zinc-400 mb-2">Match</label>
+        <div class="relative mb-5">
+          <button type="button" onclick="toggleDropdown('fixtureDropdown')" id="fixtureDropdownBtn"
+                  class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-left flex justify-between items-center hover:border-white/30 transition">
+            <span id="fixtureDropdownLabel" class="truncate">Loading fixtures...</span>
+            <i class="fas fa-chevron-down text-xs text-zinc-500 ml-2 flex-shrink-0"></i>
+          </button>
+          <div id="fixtureDropdown" class="hidden absolute z-20 mt-2 w-full max-h-64 overflow-y-auto bg-zinc-800 border border-white/10 rounded-xl shadow-2xl"></div>
+        </div>
+
+        <label class="block text-sm text-zinc-400 mb-2">Predicted event</label>
+        <div class="relative mb-2">
+          <button type="button" onclick="toggleDropdown('momentTypeDropdown')" id="momentTypeDropdownBtn"
+                  class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-left flex justify-between items-center hover:border-white/30 transition">
+            <span id="momentTypeDropdownLabel" class="truncate">Loading options...</span>
+            <i class="fas fa-chevron-down text-xs text-zinc-500 ml-2 flex-shrink-0"></i>
+          </button>
+          <div id="momentTypeDropdown" class="hidden absolute z-20 mt-2 w-full max-h-64 overflow-y-auto bg-zinc-800 border border-white/10 rounded-xl shadow-2xl"></div>
+        </div>
+        <p id="availabilityText" class="text-sm text-zinc-400 mb-6">&nbsp;</p>
+
+        <button id="generatePreviewBtn" onclick="generatePreview()"
+                class="w-full py-4 bg-white text-black font-bold rounded-2xl hover:bg-cyan-400 transition disabled:opacity-40 disabled:cursor-not-allowed">
+          Generate Preview
+        </button>
+      </div>
+
+      <!-- Step 2: show generated card, confirm or go back -->
+      <div id="mintPreviewStep" class="hidden">
+        <div id="previewImageWrap" class="w-full aspect-[3/4] bg-white/5 rounded-2xl mb-5 flex items-center justify-center overflow-hidden">
+          <p class="text-zinc-500 text-sm">Generating card...</p>
+        </div>
+        <div class="flex gap-3">
+          <button onclick="backToPicker()"
+                  class="flex-1 py-4 border border-white/30 rounded-2xl hover:bg-white/10 transition">
+            Back
+          </button>
+          <button onclick="confirmMint()" id="confirmMintBtn"
+                  class="flex-1 py-4 bg-white text-black font-bold rounded-2xl hover:bg-cyan-400 transition disabled:opacity-50">
+            Mint This
+          </button>
+        </div>
+      </div>
+
+      <p id="mintModalError" class="text-red-400 text-sm mt-3 hidden"></p>
+    </div>
+  </div>
+
+  <!-- Status banner (replaces alert() which some in-app browsers block) -->
+  <div id="statusBanner" class="hidden fixed top-24 left-1/2 -translate-x-1/2 z-[60] bg-zinc-900 border border-white/20 rounded-2xl px-6 py-3 text-sm max-w-[90vw] text-center shadow-xl"></div>
+
+  <!-- List for Sale Modal -->
+  <div id="listModal" class="hidden fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center px-6">
+    <div class="bg-zinc-900 border border-white/10 rounded-3xl p-8 max-w-sm w-full">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-xl font-bold">List for Sale</h3>
+        <button onclick="closeListModal()" class="text-zinc-400 hover:text-white text-xl">✕</button>
+      </div>
+      <label class="block text-sm text-zinc-400 mb-2">Price (SOL)</label>
+      <input id="listPriceInput" type="number" step="0.01" min="0" placeholder="0.10"
+             class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 mb-6 text-white focus:outline-none focus:border-cyan-400">
+      <button onclick="submitListing()"
+              class="w-full py-4 bg-white text-black font-bold rounded-2xl hover:bg-cyan-400 transition">
+        Confirm Listing
+      </button>
+      <p id="listModalError" class="text-red-400 text-sm mt-3 hidden"></p>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById('heroVideo');
+    video.play().catch(() => {});
+
+    const API_BASE = "https://momentsite-production.up.railway.app";
+    let connectedWallet = null;
+    let pendingMint = null; // { fixtureId, predictedEvent, match, imageUri }
+    let selectedFixture = null; // { fixtureId, label }
+    let selectedMomentType = null; // string
+    let listingAssetAddress = null;
+
+    function showStatus(message, duration = 4000) {
+      const banner = document.getElementById('statusBanner');
+      banner.textContent = message;
+      banner.classList.remove('hidden');
+      clearTimeout(showStatus._t);
+      showStatus._t = setTimeout(() => banner.classList.add('hidden'), duration);
+    }
+
+    // ---- Custom dropdowns (replaces native <select>, which renders as a
+    // full-screen OS picker on mobile that clashes with the app's UI) ----
+
+    function toggleDropdown(id) {
+      const panel = document.getElementById(id);
+      const isOpen = !panel.classList.contains('hidden');
+      closeAllDropdowns();
+      if (!isOpen) panel.classList.remove('hidden');
+    }
+
+    function closeAllDropdowns() {
+      document.getElementById('fixtureDropdown').classList.add('hidden');
+      document.getElementById('momentTypeDropdown').classList.add('hidden');
+    }
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#fixtureDropdownBtn') && !e.target.closest('#fixtureDropdown')
+          && !e.target.closest('#momentTypeDropdownBtn') && !e.target.closest('#momentTypeDropdown')) {
+        closeAllDropdowns();
+      }
+    });
+
+    function renderDropdownOptions(id, options) {
+      const panel = document.getElementById(id);
+      panel.innerHTML = options.map((opt, i) => `
+        <button type="button" onclick="${opt.onClick}"
+                class="w-full text-left px-4 py-3 hover:bg-white/10 transition ${i !== options.length - 1 ? 'border-b border-white/5' : ''}">
+          ${opt.label}
+        </button>
+      `).join('');
+    }
+
+    function selectFixture(fixtureId, label) {
+      selectedFixture = { fixtureId, label };
+      document.getElementById('fixtureDropdownLabel').textContent = label;
+      closeAllDropdowns();
+      checkAvailability();
+    }
+
+    function selectMomentType(type) {
+      selectedMomentType = type;
+      document.getElementById('momentTypeDropdownLabel').textContent = type.replace('_', ' ');
+      closeAllDropdowns();
+      checkAvailability();
+    }
+
+    async function viewMarketplace() {
+      const section = document.getElementById('marketplaceSection');
+      const container = document.getElementById('listingsContainer');
+      section.classList.remove('hidden');
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      container.innerHTML = '<p class="text-zinc-400">Loading listings...</p>';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/marketplace/listings`);
+        if (!res.ok) throw new Error(`Server responded ${res.status}`);
+        const data = await res.json();
+        const listings = Array.isArray(data) ? data : (data.listings || []);
+
+        if (!listings.length) {
+          container.innerHTML = '<p class="text-zinc-400">No listings yet.</p>';
+          return;
+        }
+
+        container.innerHTML = listings.map((item) => `
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-6">
+            <p class="font-semibold text-lg">${item.match || item.fixtureId || 'Moment'}</p>
+            <p class="text-zinc-400 text-sm mt-1">${item.predictedEvent || ''}</p>
+            <p class="text-zinc-300 mt-3">${item.price ? `Price: ${item.price}` : ''}</p>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error("Failed to load marketplace listings:", err);
+        container.innerHTML = '<p class="text-red-400">Could not load listings. Backend may be unreachable.</p>';
+      }
+    }
+
+    async function mintMoment() {
+      if (!connectedWallet) {
+        showStatus("Connect your wallet first so we know which address should own the minted moment.");
+        return;
+      }
+
+      selectedFixture = null;
+      selectedMomentType = null;
+
+      const modal = document.getElementById('mintModal');
+      const errorEl = document.getElementById('mintModalError');
+      errorEl.classList.add('hidden');
+      modal.classList.remove('hidden');
+      showPickerStep();
+
+      document.getElementById('fixtureDropdownLabel').textContent = "Loading fixtures...";
+      document.getElementById('momentTypeDropdownLabel').textContent = "Loading options...";
+      document.getElementById('availabilityText').textContent = '\u00A0';
+
+      try {
+        const [fixturesRes, momentTypesRes] = await Promise.all([
+          fetch(`${API_BASE}/api/fixtures`),
+          fetch(`${API_BASE}/api/fixtures/moment-types`)
+        ]);
+
+        const fixturesData = await fixturesRes.json();
+        const momentTypesData = await momentTypesRes.json();
+
+        if (!fixturesRes.ok) throw new Error(fixturesData.error || "Could not load fixtures");
+        if (!momentTypesRes.ok) throw new Error(momentTypesData.error || "Could not load moment types");
+
+        const fixtures = fixturesData.fixtures || [];
+        if (fixtures.length) {
+          renderDropdownOptions('fixtureDropdown', fixtures.map((f) => {
+            const label = `${f.home} vs ${f.away}`;
+            return { label, onClick: `selectFixture('${f.fixtureId}', '${label.replace(/'/g, "\\'")}')` };
+          }));
+          document.getElementById('fixtureDropdownLabel').textContent = "Select a match";
+        } else {
+          document.getElementById('fixtureDropdownLabel').textContent = "No live fixtures right now";
+        }
+
+        const momentTypes = momentTypesData.momentTypes || [];
+        renderDropdownOptions('momentTypeDropdown', momentTypes.map((t) => ({
+          label: t.replace('_', ' '), onClick: `selectMomentType('${t}')`
+        })));
+        document.getElementById('momentTypeDropdownLabel').textContent = "Select an event";
+      } catch (err) {
+        console.error("Failed to load mint options:", err);
+        errorEl.textContent = "Could not load fixtures/moment types — backend may be unreachable.";
+        errorEl.classList.remove('hidden');
+      }
+    }
+
+    async function checkAvailability() {
+      const textEl = document.getElementById('availabilityText');
+      const btn = document.getElementById('generatePreviewBtn');
+
+      if (!selectedFixture || !selectedMomentType) {
+        textEl.textContent = '\u00A0';
+        return;
+      }
+
+      textEl.textContent = "Checking availability...";
+      try {
+        const res = await fetch(`${API_BASE}/api/predictions/availability?fixtureId=${encodeURIComponent(selectedFixture.fixtureId)}&predictedEvent=${encodeURIComponent(selectedMomentType)}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Could not check availability");
+
+        if (data.soldOut) {
+          textEl.textContent = `Sold out — ${data.minted}/${data.cap} minted for this moment.`;
+          textEl.className = "text-sm text-red-400 mb-6";
+          btn.disabled = true;
+        } else {
+          textEl.textContent = `${data.remaining} of ${data.cap} left for this moment.`;
+          textEl.className = "text-sm text-zinc-400 mb-6";
+          btn.disabled = false;
+        }
+      } catch (err) {
+        console.error("Availability check failed:", err);
+        textEl.textContent = '\u00A0';
+      }
+    }
+
+    function showPickerStep() {
+      document.getElementById('mintPickerStep').classList.remove('hidden');
+      document.getElementById('mintPreviewStep').classList.add('hidden');
+    }
+
+    function showPreviewStep() {
+      document.getElementById('mintPickerStep').classList.add('hidden');
+      document.getElementById('mintPreviewStep').classList.remove('hidden');
+    }
+
+    function backToPicker() {
+      pendingMint = null;
+      document.getElementById('mintModalError').classList.add('hidden');
+      showPickerStep();
+    }
+
+    function closeMintModal() {
+      document.getElementById('mintModal').classList.add('hidden');
+      pendingMint = null;
+    }
+
+    async function generatePreview() {
+      const errorEl = document.getElementById('mintModalError');
+      errorEl.classList.add('hidden');
+
+      if (!selectedFixture || !selectedMomentType) {
+        errorEl.textContent = "Pick a match and a predicted event first.";
+        errorEl.classList.remove('hidden');
+        return;
+      }
+
+      const fixtureId = selectedFixture.fixtureId;
+      const match = selectedFixture.label;
+      const predictedEvent = selectedMomentType;
+
+      showPreviewStep();
+      const imageWrap = document.getElementById('previewImageWrap');
+      imageWrap.innerHTML = '<p class="text-zinc-500 text-sm">Generating card...</p>';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/predictions/preview`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fixtureId, match, predictedEvent })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Server responded ${res.status}`);
+
+        pendingMint = { fixtureId, predictedEvent, match, imageUri: data.imageUri };
+        imageWrap.innerHTML = `<img src="${data.imageUri}" alt="Predicted moment card" class="w-full h-full object-cover">`;
+      } catch (err) {
+        console.error("Preview generation failed:", err);
+        imageWrap.innerHTML = '<p class="text-red-400 text-sm px-4 text-center">Could not generate preview.</p>';
+        pendingMint = null;
+      }
+    }
+
+    async function confirmMint() {
+      const errorEl = document.getElementById('mintModalError');
+      const confirmBtn = document.getElementById('confirmMintBtn');
+      errorEl.classList.add('hidden');
+
+      if (!pendingMint) {
+        errorEl.textContent = "Generate a preview first.";
+        errorEl.classList.remove('hidden');
+        return;
+      }
+
+      if (!window.solana || !window.solana.isConnected) {
+        errorEl.textContent = "Wallet disconnected — reconnect and try again.";
+        errorEl.classList.remove('hidden');
+        return;
+      }
+
+      if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = "Building transaction..."; }
+
+      try {
+        // Step 1: backend builds the mint transaction with YOU as fee payer.
+        const buildRes = await fetch(`${API_BASE}/api/predictions/build`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ownerPublicKey: connectedWallet,
+            fixtureId: pendingMint.fixtureId,
+            match: pendingMint.match,
+            predictedEvent: pendingMint.predictedEvent,
+            imageUri: pendingMint.imageUri
+          })
+        });
+        const buildData = await buildRes.json();
+        if (!buildRes.ok) throw new Error(buildData.error || `Server responded ${buildRes.status}`);
+
+        // Step 2: you sign and pay the network fee in Phantom, right here.
+        if (confirmBtn) confirmBtn.textContent = "Confirm in your wallet...";
+        const txBytes = Uint8Array.from(atob(buildData.transaction), (c) => c.charCodeAt(0));
+        const transaction = solanaWeb3.VersionedTransaction.deserialize(txBytes);
+        const { signature } = await window.solana.signAndSendTransaction(transaction);
+
+        // Step 3: backend verifies the signed transaction actually landed
+        // on-chain before recording anything.
+        if (confirmBtn) confirmBtn.textContent = "Confirming...";
+        const confirmRes = await fetch(`${API_BASE}/api/predictions/confirm`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assetAddress: buildData.assetAddress, signature })
+        });
+        const confirmData = await confirmRes.json();
+        if (!confirmRes.ok) throw new Error(confirmData.error || `Server responded ${confirmRes.status}`);
+
+        closeMintModal();
+        showStatus("Moment minted! Asset: " + confirmData.prediction.assetAddress, 6000);
+      } catch (err) {
+        console.error("Mint failed:", err);
+        errorEl.textContent = err.message?.includes("User rejected")
+          ? "You cancelled the transaction in your wallet."
+          : `Mint failed: ${err.message}`;
+        errorEl.classList.remove('hidden');
+      } finally {
+        if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = "Mint This"; }
+      }
+    }
+
+    async function connectWallet() {
+      const btn = document.getElementById('connectWalletBtn');
+      if (window.solana && window.solana.isPhantom) {
+        try {
+          const resp = await window.solana.connect();
+          connectedWallet = resp.publicKey.toString();
+          const short = connectedWallet.slice(0, 4) + "…" + connectedWallet.slice(-4);
+          if (btn) btn.textContent = short;
+          document.getElementById('myMomentsBtn').classList.remove('hidden');
+          showStatus("Wallet connected: " + connectedWallet, 5000);
+        } catch (err) {
+          console.error("Wallet connection rejected:", err);
+          showStatus("Wallet connection was cancelled or rejected.");
+        }
+      } else {
+        showStatus("No Solana wallet found in this browser. Open this site in Phantom's in-app browser, or install the Phantom extension on desktop.", 6000);
+      }
+    }
+
+    async function openDashboard() {
+      if (!connectedWallet) {
+        showStatus("Connect your wallet first to see your Moments.");
+        return;
+      }
+      const modal = document.getElementById('dashboardModal');
+      const content = document.getElementById('dashboardContent');
+      modal.classList.remove('hidden');
+      content.innerHTML = '<p class="text-zinc-400 col-span-full">Loading your Moments...</p>';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/predictions?owner=${encodeURIComponent(connectedWallet)}`);
+        const predictions = await res.json();
+        if (!res.ok) throw new Error(predictions.error || `Server responded ${res.status}`);
+
+        if (!predictions.length) {
+          content.innerHTML = '<p class="text-zinc-400 col-span-full">You don\'t own any Moments yet — mint one from the hero section above.</p>';
+          return;
+        }
+
+        content.innerHTML = predictions.map((p) => dashboardCard(p)).join('');
+      } catch (err) {
+        console.error("Failed to load dashboard:", err);
+        content.innerHTML = '<p class="text-red-400 col-span-full">Could not load your Moments — backend may be unreachable.</p>';
+      }
+    }
+
+    function closeDashboard() {
+      document.getElementById('dashboardModal').classList.add('hidden');
+    }
+
+    function dashboardCard(p) {
+      const statusLabel = p.status === "resolved"
+        ? (p.outcome === "hit" ? "✅ Resolved: Hit" : "❌ Resolved: Miss")
+        : "⏳ Unresolved";
+      const editionText = p.editionNumber && p.editionCap ? `No. ${p.editionNumber} / ${p.editionCap}` : "";
+
+      return `
+        <div class="bg-white/5 border border-white/10 rounded-2xl p-5">
+          <p class="font-semibold text-lg">${escapeHtml(p.match || p.fixtureId)}</p>
+          <p class="text-zinc-400 text-sm mt-1">${escapeHtml((p.predictedEvent || "").replace('_', ' '))}</p>
+          <p class="text-sm mt-2">${statusLabel}</p>
+          ${editionText ? `<p class="text-xs text-zinc-500 mt-1">${editionText}</p>` : ""}
+          <p class="text-xs text-zinc-600 mt-3 break-all">${p.assetAddress}</p>
+          <button onclick="listFromDashboard('${p.assetAddress}')"
+                  class="w-full mt-4 py-2 border border-white/20 rounded-xl text-sm hover:bg-white/10 transition">
+            List for sale
+          </button>
+        </div>`;
+    }
+
+    function listFromDashboard(assetAddress) {
+      listingAssetAddress = assetAddress;
+      document.getElementById('listPriceInput').value = '';
+      document.getElementById('listModalError').classList.add('hidden');
+      document.getElementById('listModal').classList.remove('hidden');
+    }
+
+    function closeListModal() {
+      document.getElementById('listModal').classList.add('hidden');
+      listingAssetAddress = null;
+    }
+
+    async function submitListing() {
+      const errorEl = document.getElementById('listModalError');
+      errorEl.classList.add('hidden');
+      const priceSol = Number(document.getElementById('listPriceInput').value);
+
+      if (!priceSol || priceSol <= 0) {
+        errorEl.textContent = "Enter a valid price greater than 0.";
+        errorEl.classList.remove('hidden');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/api/marketplace/list`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assetAddress: listingAssetAddress, sellerPublicKey: connectedWallet, priceSol })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errorEl.textContent = `Listing failed: ${data.error || res.status}`;
+          errorEl.classList.remove('hidden');
+          return;
+        }
+        closeListModal();
+        showStatus(`Listed for ${priceSol} SOL.`);
+        openDashboard(); // refresh
+      } catch (err) {
+        console.error("Listing failed:", err);
+        errorEl.textContent = "Listing failed — backend unreachable.";
+        errorEl.classList.remove('hidden');
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[<>&'"]/g, (c) => ({
+        "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&#39;", '"': "&quot;",
+      }[c]));
+    }
+  </script>
+</body>
+</html>

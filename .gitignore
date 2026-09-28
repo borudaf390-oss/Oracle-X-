@@ -1,0 +1,8 @@
+artifacts/
+.node_modules.lock
+.project_id
+attachments/
+.vercel/
+.grok/
+.tanstack/
+node_modules/
